@@ -1,0 +1,12 @@
+# wrangler.toml.template
+name = "email-gateway"
+main = "worker.js"
+compatibility_date = "2025-07-08"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[email]]
+name = "email-gateway"
+destination_confirmed = true

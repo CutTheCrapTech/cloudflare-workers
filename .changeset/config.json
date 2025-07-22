@@ -1,0 +1,16 @@
+{
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "CutTheCrapTech/cloudflare-workers" }
+  ],
+  "commit": false,
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [],
+  "privatePackages": {
+    "version": true,
+    "tag": true
+  }
+}

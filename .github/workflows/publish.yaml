@@ -1,0 +1,119 @@
+# .github/workflows/publish.yml
+name: Publish Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_releases:
+        description: "Create GitHub releases"
+        required: false
+        default: true
+        type: boolean
+      publish_npm:
+        description: "Publish to npm"
+        required: false
+        default: true
+        type: boolean
+      publish_worker:
+        description: "Deploy Cloudflare Worker"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # for github releases and uploading assets
+      id-token: write # to enable use of OIDC for npm provenance
+    outputs:
+      published_packages: ${{ steps.changesets.outputs.publishedPackages }}
+      has_changes: ${{ steps.changesets.outputs.published }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "lts/*"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: "Publish to npm and create GitHub releases"
+        id: changesets
+        if: github.event.inputs.publish_npm == 'true' || github.event.inputs.create_releases == 'true'
+        uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
+        with:
+          publish: pnpm run publish
+          createGithubReleases: ${{ github.event.inputs.create_releases }}
+          commitMode: "github-api"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Run Post-Release Tasks
+        if: github.event_name == 'workflow_dispatch' || steps.changesets.outputs.published == 'true'
+        run: |
+          # Small delay just to be safe, then run in parallel
+          sleep 5
+
+          if [ "${{ steps.changesets.outputs.published }}" == "true" ]; then
+            # Store the raw JSON output in a temporary variable
+            RAW_PACKAGES_JSON='${{ steps.changesets.outputs.publishedPackages }}'
+
+            # Log the raw JSON for debugging purposes
+            echo "Raw published packages JSON:"
+            echo "$RAW_PACKAGES_JSON"
+
+            # Use jq to extract just the package names from the variable
+            PUBLISHED_PKGS=$(echo "$RAW_PACKAGES_JSON" | jq -r '.[].name')
+
+            # Log the PUBLISHED_PKGS for debugging purposes
+            echo "Running postrelease for published packages:"
+            echo "${PUBLISHED_PKGS}"
+
+            # Check if any packages were actually published.
+            if [ -n "$PUBLISHED_PKGS" ]; then
+              # Create a bash array to hold the filter arguments safely.
+              filter_args=()
+              # Read each package name and build the filter arguments array.
+              # This avoids shell word-splitting issues.
+              while IFS= read -r pkg_name; do
+                filter_args+=("--filter" "$pkg_name")
+              done <<< "$PUBLISHED_PKGS"
+
+              # Execute pnpm, passing the filter arguments BEFORE the 'run' command.
+              # "${filter_args[@]}" expands the array into separate, safely quoted arguments.
+              pnpm run "${filter_args[@]}" --parallel --if-present postrelease
+            else
+              echo "No published packages found, skipping postrelease tasks."
+            fi
+          else
+            # Fallback for manual dispatch - run on all packages
+            echo "Manual dispatch - running postrelease on all packages"
+            pnpm run -r --parallel --if-present postrelease
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-workers:
+    needs: publish
+    if: github.event.inputs.publish_worker == 'true' && needs.publish.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish-worker.yaml
+    with:
+      published_packages: ${{ needs.publish.outputs.published_packages }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

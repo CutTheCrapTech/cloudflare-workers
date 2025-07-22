@@ -1,0 +1,4 @@
+{
+  "secrets": ["EMAIL_SECRET_MAPPING"],
+  "vars": ["EMAIL_OPTIONS", "CHANGESETS_VERSION"]
+}

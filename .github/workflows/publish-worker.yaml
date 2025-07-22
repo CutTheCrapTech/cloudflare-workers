@@ -1,0 +1,184 @@
+# .github/workflows/publish-worker.yml
+# This workflow handles the deployment of Cloudflare Workers.
+# It is triggered by a workflow_call from the `publish.yaml` workflow upon a new release,
+# or can be triggered manually via workflow_dispatch for a specific package.
+name: Deploy Workers
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: "The scoped name of the worker package to deploy (e.g., '@email-gateway/cloudflare-worker')."
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      published_packages:
+        description: "JSON array of published packages from the changesets/action."
+        required: true
+        type: string
+    secrets:
+      INFISICAL_CLIENT_SECRET:
+        required: true
+
+jobs:
+  prepare-deployment:
+    name: Prepare Deployment Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.prepare_matrix.outputs.packages_json }}
+    steps:
+      - name: Prepare Deployment Matrix
+        id: prepare_matrix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGES_JSON="[]"
+          # Manual workflow_dispatch run
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            PACKAGE_NAME="${{ inputs.package_name }}"
+            echo "Manual run for package: $PACKAGE_NAME"
+            LATEST_VERSION=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq ".[] | select(.tagName | startswith(\"$PACKAGE_NAME@\")) | .tagName" | sed "s#$PACKAGE_NAME@##")
+            if [ -z "$LATEST_VERSION" ]; then
+              echo "::error::Could not find any releases for package $PACKAGE_NAME."
+              exit 1
+            fi
+            echo "Found latest version: $LATEST_VERSION"
+            PACKAGES_JSON=$(jq -n --arg name "$PACKAGE_NAME" --arg version "$LATEST_VERSION" '[{"name": $name, "version": $version}]')
+          # Automated workflow_call run
+          else
+            echo "Automated run from published packages."
+            PACKAGES_JSON='${{ inputs.published_packages }}'
+          fi
+
+          echo "packages_json=$PACKAGES_JSON" >> $GITHUB_OUTPUT
+
+  deploy-workers:
+    name: Deploy ${{ matrix.package.name }}
+    needs: prepare-deployment
+    if: ${{ needs.prepare-deployment.outputs.packages != '[]' && needs.prepare-deployment.outputs.packages != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # To download release assets
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.prepare-deployment.outputs.packages) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set environment
+        id: env
+        run: |
+          BRANCH_NAME=${{ github.ref_name }}
+          if [ "$BRANCH_NAME" = "main" ] || [ "$BRANCH_NAME" = "prod" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [ "$BRANCH_NAME" = "staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+          echo "Using environment: $(cat $GITHUB_OUTPUT)"
+
+      - name: Prepare for Deployment
+        id: prepare-files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGE_NAME="${{ matrix.package.name }}"
+          PACKAGE_VERSION="${{ matrix.package.version }}"
+          TAG_NAME="${PACKAGE_NAME}@${PACKAGE_VERSION}"
+          # Create a safe, unique temporary directory
+          TEMP_DIR="deploy_${PACKAGE_NAME//\//-}_${{ github.run_id }}_${{ github.run_attempt }}"
+          mkdir -p "$TEMP_DIR"
+          echo "temp_dir=$TEMP_DIR" >> $GITHUB_OUTPUT
+
+          # Download and unzip the deployment artifact
+          echo "Downloading and extracting dist.zip from ${TAG_NAME}"
+          gh release download "$TAG_NAME" --pattern "dist.zip" --output "$TEMP_DIR/dist.zip"
+          if [ $? -ne 0 ]; then
+              echo "::error::Could not download dist.zip for ${TAG_NAME}."
+              exit 1
+          fi
+          unzip "$TEMP_DIR/dist.zip" -d "$TEMP_DIR"
+
+          # Prepare wrangler args from manifest
+          MANIFEST_PATH="$TEMP_DIR/worker-manifest.json"
+          if [ -f "$MANIFEST_PATH" ]; then
+            echo "Found worker-manifest.json. Preparing wrangler arguments."
+            SECRETS_LIST=$(jq -r '.secrets[]' "$MANIFEST_PATH")
+            VARS_LIST=$(jq -r '.vars[]' "$MANIFEST_PATH")
+            VARS_LIST="${VARS_LIST}\nPACKAGE_VERSION"
+            echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+
+            echo "secrets_list=$SECRETS_LIST" >> $GITHUB_OUTPUT
+            echo "vars_list=$VARS_LIST" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::worker-manifest.json not found. No secrets or vars will be bound."
+          fi
+
+      - name: Load .env file
+        shell: bash
+        run: |
+          if [ -f "./.env" ]; then
+            echo "Sourcing .env file..."
+            grep -v '^[[:space:]]*#' ./.env | grep -v '^[[:space:]]*$' | grep '=' >> $GITHUB_ENV
+            echo "Finished processing .env file for GITHUB_ENV."
+          else
+            echo -e "\u001b[31mError: .env file not found at ./.\u001b[0m"
+            exit 1
+          fi
+
+      # Get cloudflare account id Infisical
+      - name: Get cloudflare account id from Infisical
+        uses: Infisical/secrets-action@v1
+        id: infisical_ro
+        with:
+          method: "universal-auth"
+          domain: ${{ env.INFISICAL_URL }}
+          client-id: ${{ env.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: ${{ env.INFISICAL_PROJECT_ID }}
+          env-slug: ${{ steps.env.outputs.environment }}
+          secret-path: "/tofu/CLOUDFLARE_ACCOUNT_ID"
+          export-type: "env"
+
+      # Get cloudflare token from Infisical
+      - name: Get cloudflare token from Infisical
+        uses: Infisical/secrets-action@v1
+        id: infisical_rw
+        with:
+          method: "universal-auth"
+          domain: ${{ env.INFISICAL_URL }}
+          client-id: ${{ env.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: ${{ env.INFISICAL_PROJECT_ID }}
+          env-slug: ${{ steps.env.outputs.environment }}
+          secret-path: "/tofu_rw/TF_VAR_cloudflare_email_tofu_token"
+          export-type: "env"
+
+      # Get cloudflare worker env from Infisical
+      - name: Get cloudflare worker env from Infisical
+        uses: Infisical/secrets-action@v1
+        id: infisical_cf_env
+        with:
+          method: "universal-auth"
+          domain: ${{ env.INFISICAL_URL }}
+          client-id: ${{ env.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: ${{ env.INFISICAL_PROJECT_ID }}
+          env-slug: ${{ steps.env.outputs.environment }}
+          secret-path: "/cloudflare_worker_env"
+          export-type: "env"
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.TF_VAR_cloudflare_email_tofu_token }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerDirectory: ${{ steps.prepare-files.outputs.temp_dir }}
+          environment: ${{ steps.env.outputs.environment }}
+          secrets: ${{ steps.prepare-files.outputs.secrets_list }}
+          vars: ${{ steps.prepare-files.outputs.vars_list }}
