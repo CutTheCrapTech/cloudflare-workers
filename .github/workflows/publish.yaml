@@ -9,11 +9,6 @@ on:
         required: false
         default: true
         type: boolean
-      publish_npm:
-        description: "Publish to npm"
-        required: false
-        default: true
-        type: boolean
       publish_worker:
         description: "Deploy Cloudflare Worker"
         required: false
@@ -50,7 +45,7 @@ jobs:
 
       - name: "Publish to npm and create GitHub releases"
         id: changesets
-        if: github.event.inputs.publish_npm == 'true' || github.event.inputs.create_releases == 'true'
+        if: github.event.inputs.create_releases == 'true'
         uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
         with:
           publish: pnpm run publish

@@ -35,3 +35,6 @@ coverage/
 # Wrangler
 wrangler.toml
 .wrangler/
+
+# docusaurus
+.docusaurus/

@@ -1,0 +1,36 @@
+cloudflare:
+  label: Cloudflare
+  permalink: /tags/cloudflare
+  description: Cloudflare related posts
+changesets:
+  label: Changesets
+  permalink: /tags/changesets
+  description: Changesets related posts
+monorepo:
+  label: Monorepo
+  permalink: /tags/monorepo
+  description: Monorepo related posts
+release management:
+  label: Release Management
+  permalink: /tags/release-management
+  description: Release Management related posts
+ci/cd:
+  label: CI/CD
+  permalink: /tags/ci-cd
+  description: CI/CD related posts
+email:
+  label: Email
+  permalink: /tags/email
+  description: Email related posts
+security:
+  label: Security
+  permalink: /tags/security
+  description: Security related posts
+typescript:
+  label: TypeScript
+  permalink: /tags/typescript
+  description: TypeScript related posts
+privacy:
+  label: Privacy
+  permalink: /tags/privacy
+  description: Privacy related posts
