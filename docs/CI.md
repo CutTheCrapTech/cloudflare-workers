@@ -69,3 +69,22 @@ This reusable workflow is called by the `publish.yaml` workflow (or can be trigg
 - `environment` (choice, default: `production`): Deployment environment (`production` or `staging`).
 - `package_filter` (string, optional): Package name filter (e.g., 'my-worker').
 - `force_deploy` (boolean, default: `false`): Force deploy even if no changes detected.
+
+The action will find the latest published version of the package and deploy it to the environment determined by the branch the action is run on (`main`/`prod` -> `prod`, `staging` -> `staging`, others -> `dev`).
+
+## **Prerequisites**
+
+1.  **Modify the `.env` file** in the root of the repository with your Infisical details.
+
+2.  **Add `INFISICAL_CLIENT_SECRET` to GitHub Secrets:**
+    - In your GitHub repository, go to **Settings** > **Secrets and variables** > **Actions**.
+    - Create a new repository secret named `INFISICAL_CLIENT_SECRET` with the client secret from your Infisical Machine Identity.
+
+3.  **Ensure Secrets are in Infisical:** The action expects the following secrets to be available in their respective Infisical paths:
+    - `CLOUDFLARE_ACCOUNT_ID`: Should be present in the `/tofu` secret path. You would have set this already if using [homelab](https://github.com/CutTheCrapTech/homelab/tree/main/tofu/cloudflare/account-tokens) or create one.
+    - `TF_VAR_cloudflare_email_tofu_token`: Should be present in the `/tofu_rw` secret path. This is a scoped API token for Cloudflare, automatically created by the [homelab](https://github.com/CutTheCrapTech/homelab/tree/main/tofu/cloudflare/account-tokens) or create an account or user token manually with permissions deploy workers.
+    - All worker-specific environment variables and secrets should be in the `/cloudflare_worker_env` path.
+      - EMAIL_OPTIONS = {"default_email_address":"your-real-email@gmail.com","ignore_email_checks":["trusted-receiver@example.com"]}
+      - EMAIL_SECRET_MAPPING = { "secret1": "user1@gmail.com", "secret2" "user2@gmail.com" }
+
+    > **Note for Non-Infisical Users:** If you are not using Infisical, you will need to adapt the `/.github/workflows/publish-worker.yaml` file. You can either modify the Infisical steps to pull from a different source or replace them entirely by providing the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` and other worker env variables as standard GitHub Actions secrets. For a simpler setup, consider using the [Wrangler CLI](README.md#option-2-wrangler-cli-recommended) or [Manual Deployment](README.md#option-1-manual-deployment-beginner-friendly).

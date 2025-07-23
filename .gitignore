@@ -16,15 +16,6 @@ pnpm-debug.log*
 coverage/
 .jest-cache/
 
-# Environment variables
-# Never commit secrets or local environment configurations.
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.test
-
 # macOS specific
 .DS_Store
 

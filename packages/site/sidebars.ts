@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -14,41 +14,41 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
  */
 const sidebars: SidebarsConfig = {
   tutorialSidebar: [
-    'index',
+    "index",
     {
-      type: 'category',
-      label: 'Email Gateway Cloudflare',
+      type: "category",
+      label: "Email Gateway Cloudflare",
       link: {
-        type: 'doc',
-        id: 'email-gateway-cloudflare/index', // Link to the new index.md
+        type: "doc",
+        id: "email-gateway-cloudflare/index", // Link to the new index.md
       },
       items: [
         {
-          type: 'category',
-          label: 'Browser Extensions',
+          type: "category",
+          label: "Browser Extensions",
           items: [
-            'email-gateway-cloudflare/browser-extensions/index',
-            'email-gateway-cloudflare/browser-extensions/installation',
-            'email-gateway-cloudflare/browser-extensions/usage',
+            "email-gateway-cloudflare/browser-extensions/index",
+            "email-gateway-cloudflare/browser-extensions/installation",
+            "email-gateway-cloudflare/browser-extensions/usage",
           ],
         },
         {
-          type: 'category',
-          label: 'Cloudflare Worker',
+          type: "category",
+          label: "Cloudflare Worker",
           items: [
-            'email-gateway-cloudflare/cloudflare-worker/index',
-            'email-gateway-cloudflare/cloudflare-worker/prerequisites',
-            'email-gateway-cloudflare/cloudflare-worker/configuration',
+            "email-gateway-cloudflare/cloudflare-worker/index",
+            "email-gateway-cloudflare/cloudflare-worker/prerequisites",
+            "email-gateway-cloudflare/cloudflare-worker/configuration",
             {
-              type: 'category',
-              label: 'Deployment Options',
+              type: "category",
+              label: "Deployment Options",
               items: [
-                'email-gateway-cloudflare/cloudflare-worker/deployment-terraform',
-                'email-gateway-cloudflare/cloudflare-worker/deployment-wrangler',
-                'email-gateway-cloudflare/cloudflare-worker/deployment-manual',
+                "email-gateway-cloudflare/cloudflare-worker/deployment-terraform",
+                "email-gateway-cloudflare/cloudflare-worker/deployment-wrangler",
+                "email-gateway-cloudflare/cloudflare-worker/deployment-manual",
               ],
             },
-            'email-gateway-cloudflare/cloudflare-worker/email-routing',
+            "email-gateway-cloudflare/cloudflare-worker/email-routing",
           ],
         },
       ],

@@ -10,7 +10,7 @@ on:
         default: true
         type: boolean
       publish_worker:
-        description: "Deploy Cloudflare Worker"
+        description: "Deploy Cloudflare Workers"
         required: false
         default: false
         type: boolean
