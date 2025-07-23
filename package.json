@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "version": "pnpm changeset version && pnpm run postversion",
+    "postversion": "pnpm run -r --if-present postversion",
     "publish": "npm run prepublishOnly && pnpm changeset publish",
     "clean": "pnpm run -r clean",
     "build": "pnpm run -r build",
@@ -21,6 +22,7 @@
   },
   "_scripts_documentation": {
     "version": "Bumps versions via changesets and then runs post-versioning steps.",
+    "postversion": "Runs the 'postversion' script in all packages (e.g., to sync manifest versions).",
     "publish": "changeset publish",
     "clean": "Clean build artifacts in dist/",
     "build": "Clean and build",
