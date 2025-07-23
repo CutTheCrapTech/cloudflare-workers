@@ -9,8 +9,12 @@ on:
     branches:
       - main
       - "feature/**"
-  pull_request:
+  pull_request_target:
     branches: [main]
+  workflow_run:
+    workflows: ["Version Packages"]
+    types:
+      - completed
 
 jobs:
   ci:
@@ -22,6 +26,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
