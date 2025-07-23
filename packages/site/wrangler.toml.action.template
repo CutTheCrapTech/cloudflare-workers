@@ -8,4 +8,21 @@ head_sampling_rate = 1
 
 [assets]
 directory = "./"
-binding = "ASSETS"
+
+[env.prod]
+name = "my-blog-prod"
+[[env.prod.routes]]
+pattern = "blog.enark.tech/*"
+zone_name = "enark.tech"
+
+[env.staging]
+name = "my-blog-staging"
+[[env.staging.routes]]
+pattern = "blog-staging.enark.tech/*"
+zone_name = "enark.tech"
+
+[env.dev]
+name = "my-blog-dev"
+[[env.dev.routes]]
+pattern = "blog-dev.enark.tech/*"
+zone_name = "enark.tech"

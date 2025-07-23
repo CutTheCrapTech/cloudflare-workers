@@ -19,7 +19,10 @@
     "lint:fix": "biome check --write .",
     "lint:unsafe_fix": "biome check --write --unsafe .",
     "lint:ci": "biome ci .",
-    "ci": "pnpm run type-check && pnpm run build"
+    "ci": "pnpm run type-check && pnpm run build",
+    "zip": "npm run ci && zip -r dist.zip ./dist",
+    "release-dist": "gh release upload $npm_package_name@$npm_package_version dist.zip --clobber",
+    "postrelease": "pnpm run zip && pnpm run release-dist"
   },
   "_scripts_documentation": {
     "clean": "Removes the `dist` directory.",

@@ -18,6 +18,7 @@
     "test": "pnpm run -r --if-present test",
     "ci": "pnpm run -r --reporter=append-only ci",
     "validate": "pnpm run -r --sequential ci",
+    "prepublishOnly": "pnpm run -r --if-present prepublishOnly",
     "upgrade": "pnpm update -r"
   },
   "_scripts_documentation": {
@@ -37,6 +38,7 @@
     "test": "Run Jest tests with ES modules support",
     "ci": "Run all CI checks including build - for CI/CD",
     "validate": "Run all CI checks including build - for dev - similar to CI above but sequential",
+    "prepublishOnly": "Runs before npm publish to ensure quality",
     "upgrade": "Upgrades dependencies using pnpm."
   },
   "engines": {

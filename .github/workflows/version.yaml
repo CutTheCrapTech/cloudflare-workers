@@ -52,6 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Mark PR as draft
+        if: steps.changesets.outputs.pullRequestNumber != ''
         run: |
           gh pr ready --undo ${{ steps.changesets.outputs.pullRequestNumber }}
         env:
