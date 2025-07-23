@@ -11,10 +11,6 @@ on:
       - "feature/**"
   pull_request_target:
     branches: [main]
-  workflow_run:
-    workflows: ["Version Packages"]
-    types:
-      - completed
 
 jobs:
   ci:
