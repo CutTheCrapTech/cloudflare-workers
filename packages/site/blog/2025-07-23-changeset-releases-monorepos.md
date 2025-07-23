@@ -1,7 +1,8 @@
 ---
+slug: changeset-releases-monorepos
 title: "Streamlining Package Releases with Changesets in Monorepos"
-date: "2025-07-22"
-description: "Exploring the challenges and solutions for managing Cloudflare Workers releases within a monorepo using Changesets, and why it's a powerful alternative to Semantic-Release."
+date: "2025-07-23"
+authors: [karteek]
 tags: ["cloudflare", "changesets", "monorepo", "release management", "ci/cd"]
 ---
 

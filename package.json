@@ -41,9 +41,9 @@
     "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
   },
-    "pnpm": {
-      "overrides": {
-        "webpack-dev-server": "5.2.1"
+  "pnpm": {
+    "overrides": {
+      "webpack-dev-server": "5.2.1"
     }
   },
   "devDependencies": {

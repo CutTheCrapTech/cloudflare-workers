@@ -1,6 +1,7 @@
 ---
 slug: secure-email-gateway
 title: "Building a Secure Email Gateway with Cloudflare Workers"
+date: "2025-07-22"
 authors: [karteek]
 tags: [cloudflare, email, security, typescript, privacy]
 ---
