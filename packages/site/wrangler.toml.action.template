@@ -1,8 +1,11 @@
 # wrangler.toml.template
 name = "my-blog"
-main = "worker.js"
 compatibility_date = "2025-07-08"
 
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+[assets]
+directory = "./"
+binding = "ASSETS"
