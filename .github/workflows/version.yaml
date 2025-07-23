@@ -40,6 +40,7 @@ jobs:
         run: pnpm run ci
 
       - name: Create Release Pull Request or Publish to npm
+        id: changesets
         uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
         with:
           # Only version, don't publish
@@ -49,3 +50,9 @@ jobs:
           commitMode: "github-api"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark PR as draft
+        run: |
+          gh pr ready --undo ${{ steps.changesets.outputs.pullRequestNumber }}
+        env:
+          GH_TOKEN: ${{ github.token }}
