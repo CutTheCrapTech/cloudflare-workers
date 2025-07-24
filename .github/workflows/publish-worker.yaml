@@ -114,7 +114,7 @@ jobs:
 
       # Get cloudflare account id Infisical
       - name: Get cloudflare account id from Infisical
-        uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
+        uses: Infisical/secrets-action@a663da43e1541832614bfd9dcf9ab67381ea2b98 # v1.0.12
         id: infisical_ro
         with:
           method: "universal"
@@ -128,7 +128,7 @@ jobs:
 
       # Get cloudflare token from Infisical
       - name: Get cloudflare token from Infisical
-        uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
+        uses: Infisical/secrets-action@a663da43e1541832614bfd9dcf9ab67381ea2b98 # v1.0.12
         id: infisical_rw
         with:
           method: "universal"
@@ -152,7 +152,7 @@ jobs:
       # WORKER_VARS will be available as environment variable
       - name: Get worker vars from Infisical
         id: infisical_worker_vars
-        uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
+        uses: Infisical/secrets-action@a663da43e1541832614bfd9dcf9ab67381ea2b98 # v1.0.12
         with:
           method: "universal"
           domain: ${{ env.INFISICAL_URL }}
@@ -166,7 +166,7 @@ jobs:
       # Get worker secrets from Infisical
       - name: Get worker secrets from Infisical
         id: infisical_worker_secrets
-        uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
+        uses: Infisical/secrets-action@a663da43e1541832614bfd9dcf9ab67381ea2b98 # v1.0.12
         with:
           method: "universal"
           domain: ${{ env.INFISICAL_URL }}
