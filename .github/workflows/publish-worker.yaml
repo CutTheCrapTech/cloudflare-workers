@@ -100,56 +100,6 @@ jobs:
           fi
           echo "Using environment: $(cat $GITHUB_OUTPUT)"
 
-      - name: Prepare for Deployment
-        id: prepare-files
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PACKAGE_NAME="${{ matrix.package.name }}"
-          PACKAGE_VERSION="${{ matrix.package.version }}"
-          TAG_NAME="${PACKAGE_NAME}@${PACKAGE_VERSION}"
-          # Create a safe, unique temporary directory
-          TEMP_DIR="deploy_${PACKAGE_NAME//\//-}_${{ github.run_id }}_${{ github.run_attempt }}"
-          mkdir -p "$TEMP_DIR"
-          echo "dist_dir=$TEMP_DIR/dist" >> $GITHUB_OUTPUT
-
-          # Download and unzip the deployment artifact
-          echo "Downloading and extracting dist.zip from ${TAG_NAME}"
-          gh release download "$TAG_NAME" --pattern "dist.zip" --output "$TEMP_DIR/dist.zip"
-          if [ $? -ne 0 ]; then
-              echo "::error::Could not download dist.zip for ${TAG_NAME}."
-              exit 1
-          fi
-          unzip "$TEMP_DIR/dist.zip" -d "$TEMP_DIR"
-
-          # Prepare wrangler args from manifest
-          MANIFEST_PATH="$TEMP_DIR/dist/worker-manifest.json"
-          if [ -f "$MANIFEST_PATH" ]; then
-            echo "Found worker-manifest.json. Preparing wrangler arguments."
-            SECRETS_LIST=$(jq -r '.secrets[]' "$MANIFEST_PATH")
-            VARS_LIST=$(jq -r '.vars[]' "$MANIFEST_PATH")
-
-            # Always add PACKAGE_VERSION to the vars
-            if [ -n "$VARS_LIST" ]; then
-              VARS_LIST="${VARS_LIST}\nPACKAGE_VERSION"
-            else
-              VARS_LIST="PACKAGE_VERSION"
-            fi
-
-            echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-
-            {
-              echo "secrets_list<<EOF"
-              echo "$SECRETS_LIST"
-              echo "EOF"
-              echo "vars_list<<EOF"
-              echo "$VARS_LIST"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::worker-manifest.json not found. No secrets or vars will be bound."
-          fi
-
       - name: Load .env file
         shell: bash
         run: |
@@ -190,10 +140,19 @@ jobs:
           secret-path: "/tofu_rw"
           export-type: "env"
 
-      # Get cloudflare worker env from Infisical
-      - name: Get cloudflare worker env from Infisical
+      # Sanitize package name for Infisical paths
+      - name: Sanitize package name
+        id: sanitize
+        run: |
+          SANITIZED_NAME=$(echo "${{ matrix.package.name }}" | sed 's/@//g' | sed 's/\//-/g')
+          echo "name=$SANITIZED_NAME" >> $GITHUB_OUTPUT
+          echo "Sanitized package name: $SANITIZED_NAME"
+
+      # Get worker vars from Infisical
+      # WORKER_VARS will be available as environment variable
+      - name: Get worker vars from Infisical
+        id: infisical_worker_vars
         uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
-        id: infisical_cf_env
         with:
           method: "universal"
           domain: ${{ env.INFISICAL_URL }}
@@ -201,35 +160,154 @@ jobs:
           client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
           project-slug: ${{ env.INFISICAL_PROJECT_SLUG }}
           env-slug: ${{ steps.env.outputs.environment }}
-          secret-path: "/cloudflare_worker_env"
+          secret-path: "/cloudflare_worker_env/${{ steps.sanitize.outputs.name }}/vars"
           export-type: "env"
 
-      - name: Debug environment and vars
-        run: |
-          echo "PACKAGE_VERSION environment variable: '$PACKAGE_VERSION'"
-          echo "vars_list output: '${{ steps.prepare-files.outputs.vars_list }}'"
+      # Get worker secrets from Infisical
+      - name: Get worker secrets from Infisical
+        id: infisical_worker_secrets
+        uses: Infisical/secrets-action@08d433afae6a851f9081d0563a01a55fdf96568b #v1.0.11
+        with:
+          method: "universal"
+          domain: ${{ env.INFISICAL_URL }}
+          client-id: ${{ env.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: ${{ env.INFISICAL_PROJECT_SLUG }}
+          env-slug: ${{ steps.env.outputs.environment }}
+          secret-path: "/cloudflare_worker_env/${{ steps.sanitize.outputs.name }}/secrets"
+          export-type: "file"
+          file-output-path: "/worker-secrets.env"
 
       - name: Deploy to Cloudflare
-        uses: cloudflare/wrangler-action@392082e81ffbcb9ebdde27400634aa004b35ea37 # v3.14.0
-        with:
-          apiToken: ${{ env.TF_VAR_cloudflare_gha_workers_deployment }}
-          accountId: ${{ env.TF_VAR_cloudflare_account_id }}
-          workingDirectory: ${{ steps.prepare-files.outputs.dist_dir }}
-          environment: ${{ steps.env.outputs.environment }}
-          wranglerVersion: "4.25.1"
-          command: 'versions upload --tag v${{ matrix.package.version }} --message "Deployed ${{ matrix.package.name }}@${{ matrix.package.version }}"'
-          secrets: ${{ steps.prepare-files.outputs.secrets_list }}
-          vars: ${{ steps.prepare-files.outputs.vars_list }}
-          postCommands: |
-            echo "Deploying version v${{ matrix.package.version }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.TF_VAR_cloudflare_gha_workers_deployment }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.TF_VAR_cloudflare_account_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
 
-            # Get the version ID and use it directly without storing in a variable
-            npx wrangler versions list --env ${{ steps.env.outputs.environment }} --json | jq -r 'sort_by(.metadata.created_on) | reverse | .[0].id' > /tmp/version_id.txt
+          PACKAGE_NAME="${{ matrix.package.name }}"
+          PACKAGE_VERSION="${{ matrix.package.version }}"
+          SANITIZED_PACKAGE_NAME="${{ steps.sanitize.outputs.name }}"
+          TAG_NAME="${PACKAGE_NAME}@${PACKAGE_VERSION}"
 
-            echo "Version ID from file:"
-            cat /tmp/version_id.txt
+          # Store absolute path to secrets file before changing directories
+          WORKER_SECRETS_FILE="$(pwd)/worker-secrets.env"
 
-            echo "Version: $(cat /tmp/version_id.txt)"
+          # Create unique temporary directory
+          TEMP_DIR="deploy_${SANITIZED_PACKAGE_NAME}_${{ github.run_id }}_${{ github.run_attempt }}"
+          mkdir -p "$TEMP_DIR"
 
-            # Use the file content directly in the deploy command
-            npx wrangler versions deploy "$(cat /tmp/version_id.txt)" --percentage 100 --env ${{ steps.env.outputs.environment }} --message "Deploy Version v${{ matrix.package.version }}" -y
+          echo "Deploying $PACKAGE_NAME@$PACKAGE_VERSION (sanitized: $SANITIZED_PACKAGE_NAME)"
+
+          # Download and extract deployment artifact
+          echo "Downloading and extracting dist.zip from ${TAG_NAME}"
+          gh release download "$TAG_NAME" --pattern "dist.zip" --output "$TEMP_DIR/dist.zip"
+          if [ $? -ne 0 ]; then
+            echo "::error::Could not download dist.zip for ${TAG_NAME}."
+            exit 1
+          fi
+          unzip "$TEMP_DIR/dist.zip" -d "$TEMP_DIR"
+
+          SKIP_SECRETS_UPLOAD="false"
+          # Validate secrets file exists and has content
+          if [ ! -f "$WORKER_SECRETS_FILE" ]; then
+            echo "::warning::Worker secrets file not found at $WORKER_SECRETS_FILE"
+            SKIP_SECRETS_UPLOAD="true"
+          fi
+          if [ ! -s "$WORKER_SECRETS_FILE" ]; then
+            echo "::warning::Worker secrets file is empty at $WORKER_SECRETS_FILE"
+            SKIP_SECRETS_UPLOAD="true"
+          fi
+
+          # Change to dist directory for wrangler commands
+          cd "$TEMP_DIR/dist"
+
+          # Only inject vars if WORKER_VARS is set
+          if [ -n "$WORKER_VARS" ]; then
+            # Check if wrangler.toml already has [vars] section
+            if grep -q "^\[vars\]" wrangler.toml; then
+              echo "::error::[vars] section already exists in wrangler.toml"
+              echo "Either manage vars in wrangler.toml OR in Infisical, not both"
+              exit 1
+            fi
+
+            # Inject vars from Infisical (includes [vars] header)
+            echo "Injecting vars from Infisical..."
+            echo "$WORKER_VARS" >> wrangler.toml
+          fi
+
+          # Verify authentication
+          if ! npx wrangler whoami > /dev/null 2>&1; then
+            echo "::error::Failed to authenticate with Cloudflare"
+            if [ -n "$WORKER_VARS" ]; then
+              echo "::error::Might also be because infisical WORKER_VARS secret is breaking toml syntax. Double-check."
+            fi
+            exit 1
+          fi
+
+          # Check if worker exists before trying versions workflow
+          echo "Checking if worker exists..."
+          set +e
+          WORKER_CHECK_OUTPUT=$(npx wrangler versions list --env ${{ steps.env.outputs.environment }} 2>&1)
+          WORKER_CHECK_EXIT=$?
+          set -e
+
+          # Check for specific "worker doesn't exist" error, not just any failure
+          if [ $WORKER_CHECK_EXIT -eq 0 ]; then
+            echo "Worker exists - using versions workflow"
+
+            # Upload version
+            echo "Uploading worker version v$PACKAGE_VERSION"
+            npx wrangler versions upload \
+              --env ${{ steps.env.outputs.environment }} \
+              --tag "v$PACKAGE_VERSION" \
+              --message "Deployed $PACKAGE_NAME@$PACKAGE_VERSION"
+
+            # Get the latest version ID
+            echo "Getting latest version ID..."
+            VERSION_ID=$(npx wrangler versions list \
+              --env ${{ steps.env.outputs.environment }} \
+              --json | jq -r 'sort_by(.metadata.created_on) | reverse | .[0].id')
+
+            echo "Latest version ID: $VERSION_ID"
+
+            # Deploy the version FIRST
+            echo "Deploying version $VERSION_ID at 100%"
+            npx wrangler versions deploy "$VERSION_ID" \
+              --env ${{ steps.env.outputs.environment }} \
+              --percentage 100 \
+              --message "Deploy Version v$PACKAGE_VERSION" \
+              --yes
+          elif echo "$WORKER_CHECK_OUTPUT" | grep -q "This Worker does not exist" || echo "$WORKER_CHECK_OUTPUT" | grep -q "code: 10007"; then
+            echo "Worker does not exist - performing initial deployment"
+            npx wrangler deploy \
+              --env ${{ steps.env.outputs.environment }}
+          else
+            echo "::error::Failed to check worker status. Output:"
+            echo "$WORKER_CHECK_OUTPUT"
+            exit 1
+          fi
+
+          if [ "$SKIP_SECRETS_UPLOAD" = "false" ]; then
+            # Upload secrets AFTER deployment
+            echo "Uploading secrets..."
+            npx wrangler secret bulk \
+              --env ${{ steps.env.outputs.environment }} \
+              "$WORKER_SECRETS_FILE"
+          else
+            echo "Skipping secrets upload (SKIP_SECRETS_UPLOAD is set)"
+          fi
+
+          echo "Successfully deployed $PACKAGE_NAME@$PACKAGE_VERSION"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up temporary files containing secrets
+          rm -f "worker-vars.env"
+          rm -f "worker-secrets.env"
+          # Clean up temp directory if it exists
+          SANITIZED_PACKAGE_NAME="${{ steps.sanitize.outputs.name }}"
+          TEMP_DIR="deploy_${SANITIZED_PACKAGE_NAME}_${{ github.run_id }}_${{ github.run_attempt }}"
+          rm -rf "$TEMP_DIR"
