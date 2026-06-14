@@ -57,7 +57,7 @@
     "@cloudflare/workers-types": "^4.20250724.0",
     "@jest/globals": "^30.0.5",
     "@types/jest": "^30.0.0",
-    "esbuild": "^0.25.8",
+    "esbuild": "^0.28.0",
     "jest": "^30.0.5",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.4.0",
