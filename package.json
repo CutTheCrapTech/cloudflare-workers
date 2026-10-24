@@ -52,16 +52,16 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.1.2",
-    "@changesets/changelog-github": "^0.5.1",
-    "@changesets/cli": "^2.29.5",
-    "@cloudflare/workers-types": "^4.20250724.0",
+    "@changesets/changelog-github": "^1.0.0",
+    "@changesets/cli": "^3.0.0",
+    "@cloudflare/workers-types": "^5.0.0",
     "@jest/globals": "^30.0.5",
     "@types/jest": "^30.0.0",
     "esbuild": "^0.25.8",
     "jest": "^30.0.5",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.4.0",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.0",
     "wrangler": "^4.26.0"
   }
 }
